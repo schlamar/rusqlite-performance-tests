@@ -34,6 +34,7 @@ fn main() -> Result<()> {
         );",
         (),
     )?;
+    conn.execute("CREATE INDEX dt_idx ON data(dt)", ())?;
     println!("Created table");
     insert_data(&mut conn)?;
     println!("INSERT done");
