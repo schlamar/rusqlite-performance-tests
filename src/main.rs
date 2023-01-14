@@ -25,7 +25,7 @@ fn main() -> Result<()> {
         fs::remove_file(db_path).unwrap();
     }
     let mut conn = Connection::open(db_path)?;
-    conn.pragma_update(None, "journal_mode", "WAL")?;
+    // conn.pragma_update(None, "journal_mode", "WAL")?;
 
     conn.execute(
         "CREATE TABLE data(
@@ -36,7 +36,9 @@ fn main() -> Result<()> {
     )?;
     conn.execute("CREATE INDEX dt_idx ON data(dt)", ())?;
     println!("Created table");
+    let now = Instant::now();
     insert_data(&mut conn)?;
+    println!("Elapsed: {:.2?}", now.elapsed());
     println!("INSERT done");
 
     let t1: u64 = 1600005000;
