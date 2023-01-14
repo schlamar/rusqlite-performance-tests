@@ -11,7 +11,11 @@ fn insert_data(conn: &mut Connection) -> Result<()> {
         if i % (num_entries / 10) == 0 {
             println!("Processing {:?}%", i / (num_entries / 100));
         }
-        tx.execute("INSERT INTO data(dt, label) VALUES (?, 'hello');", (t,))?;
+        tx.execute(
+            "INSERT INTO data(dt, id, label)
+                 VALUES (?, (SELECT num FROM autoinc), 'hello');",
+            (t,),
+        )?;
         if i % 100 == 0 {
             t += 1;
         }
@@ -27,16 +31,24 @@ fn main() -> Result<()> {
     let mut conn = Connection::open(db_path)?;
     conn.pragma_update(None, "journal_mode", "WAL")?;
 
+    conn.execute("CREATE TABLE autoinc(num INTEGER)", ())?;
+    conn.execute("INSERT INTO autoinc(num) VALUES(0)", ())?;
     conn.execute(
         "CREATE TABLE data(
-            dt INTEGER,
-            label TEXT
-        );",
+            dt INTEGER, id INTEGER,
+            label TEXT,
+            PRIMARY KEY(dt, id)
+        ) WITHOUT ROWID",
         (),
     )?;
-    conn.execute("CREATE INDEX dt_idx ON data(dt)", ())?;
+    conn.execute(
+        "CREATE TRIGGER insert_trigger BEFORE INSERT ON data BEGIN UPDATE autoinc SET num=num+1; END;",
+        (),
+    )?;
     println!("Created table");
+    let now = Instant::now();
     insert_data(&mut conn)?;
+    println!("Elapsed: {:.2?}", now.elapsed());
     println!("INSERT done");
 
     let t1: u64 = 1600005000;
