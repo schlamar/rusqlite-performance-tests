@@ -7,13 +7,16 @@ fn insert_data(conn: &mut Connection) -> Result<()> {
     let mut t: u64 = 1600000000;
     let num_entries = 1000 * 1000;
     let tx = conn.transaction()?;
-    for i in 0..num_entries {
-        if i % (num_entries / 10) == 0 {
-            println!("Processing {:?}%", i / (num_entries / 100));
-        }
-        tx.execute("INSERT INTO data(dt, label) VALUES (?, 'hello');", (t,))?;
-        if i % 100 == 0 {
-            t += 1;
+    {
+        let mut stmt = tx.prepare("INSERT INTO data(dt, label) VALUES (?, 'hello')")?;
+        for i in 0..num_entries {
+            if i % (num_entries / 10) == 0 {
+                println!("Processing {:?}%", i / (num_entries / 100));
+            }
+            stmt.execute((t,))?;
+            if i % 100 == 0 {
+                t += 1;
+            }
         }
     }
     tx.commit()
