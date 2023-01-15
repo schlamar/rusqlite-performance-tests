@@ -3,17 +3,36 @@ use std::time::Instant;
 
 use rusqlite::{Connection, Result};
 
+fn create_db() -> Result<Connection> {
+    let db_path = "test.db";
+    if std::path::Path::new(db_path).exists() {
+        fs::remove_file(db_path).unwrap();
+    }
+    let conn = Connection::open(db_path)?;
+    // conn.pragma_update(None, "journal_mode", "WAL")?;
+    conn.execute(
+        "CREATE TABLE data(
+            dt INTEGER,
+            label TEXT
+        )",
+        (),
+    )?;
+    conn.execute("CREATE INDEX id_dt ON data(dt)", ())?;
+    Ok(conn)
+}
+
 fn insert_data(conn: &mut Connection) -> Result<()> {
     let mut t: u64 = 1600000000;
     let num_entries = 1000 * 1000;
+    let now = Instant::now();
     let tx = conn.transaction()?;
     {
         let mut stmt = tx.prepare(
-            "INSERT INTO data(dt, id, label)
-        VALUES (?, (SELECT num FROM autoinc), 'hello');",
+            "INSERT INTO data(dt, label) VALUES
+                 (?, 'hello');",
         )?;
         for i in 0..num_entries {
-            if i % (num_entries / 10) == 0 {
+            if i % (num_entries / 20) == 0 {
                 println!("Processing {:?}%", i / (num_entries / 100));
             }
             stmt.execute((t,))?;
@@ -22,37 +41,12 @@ fn insert_data(conn: &mut Connection) -> Result<()> {
             }
         }
     }
-    tx.commit()
+    tx.commit()?;
+    println!("Elapsed: {:.2?}", now.elapsed());
+    Ok(())
 }
 
-fn main() -> Result<()> {
-    let db_path = "test.db";
-    if std::path::Path::new(db_path).exists() {
-        fs::remove_file(db_path).unwrap();
-    }
-    let mut conn = Connection::open(db_path)?;
-    conn.pragma_update(None, "journal_mode", "WAL")?;
-
-    conn.execute("CREATE TABLE autoinc(num INTEGER)", ())?;
-    conn.execute("INSERT INTO autoinc(num) VALUES(0)", ())?;
-    conn.execute(
-        "CREATE TABLE data(
-            dt INTEGER, id INTEGER,
-            label TEXT,
-            PRIMARY KEY(dt, id)
-        ) WITHOUT ROWID",
-        (),
-    )?;
-    conn.execute(
-        "CREATE TRIGGER insert_trigger BEFORE INSERT ON data BEGIN UPDATE autoinc SET num=num+1; END;",
-        (),
-    )?;
-    println!("Created table");
-    let now = Instant::now();
-    insert_data(&mut conn)?;
-    println!("Elapsed: {:.2?}", now.elapsed());
-    println!("INSERT done");
-
+fn query_data(conn: &mut Connection) -> Result<()> {
     let t1: u64 = 1600005000;
     let t2: u64 = 1600005100;
     let now = Instant::now();
@@ -66,4 +60,12 @@ fn main() -> Result<()> {
     println!("Elapsed: {:.2?}", now.elapsed());
     println!("Found results {:?}", i);
     Ok(())
+}
+
+fn main() {
+    let mut conn = create_db().unwrap();
+    println!("Created table");
+    insert_data(&mut conn).unwrap();
+    println!("INSERT done");
+    query_data(&mut conn).unwrap();
 }
